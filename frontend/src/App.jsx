@@ -1,35 +1,61 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useEffect, useState } from "react";
+import "./App.css";
+import AnalyticsDashboard from "./components/analytics/AnalyticsDashboard";
+import { dummyAnalyticsData } from "./data/dummyAnalyticsData";
+import { fetchAnalyticsOverview } from "./data/fetchAnalyticsData";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [data, setData] = useState(dummyAnalyticsData);
+  const [source, setSource] = useState("demo");
+  const [statusMessage, setStatusMessage] = useState("Loading analytics...");
+
+  useEffect(() => {
+    let isMounted = true;
+    let currentAbortController = null;
+
+    const loadAnalytics = async () => {
+      if (currentAbortController) {
+        currentAbortController.abort();
+      }
+
+      currentAbortController = new AbortController();
+
+      try {
+        const apiData = await fetchAnalyticsOverview({ signal: currentAbortController.signal });
+        if (!isMounted) return;
+        setData(apiData);
+        setSource("api");
+        setStatusMessage("");
+      } catch {
+        if (!isMounted) return;
+        setData(dummyAnalyticsData);
+        setSource("demo");
+        setStatusMessage("API unavailable. Showing demo analytics data.");
+      }
+    };
+
+    loadAnalytics();
+    const intervalId = window.setInterval(loadAnalytics, 30000);
+
+    return () => {
+      isMounted = false;
+      if (currentAbortController) {
+        currentAbortController.abort();
+      }
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
+      {statusMessage ? (
+        <p className="status-banner" data-testid="status-banner">
+          {statusMessage}
         </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+      ) : null}
+      <AnalyticsDashboard data={data} source={source} />
     </>
-  )
+  );
 }
 
-export default App
+export default App;
